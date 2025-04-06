@@ -1,106 +1,72 @@
-{
- "cells": [
-  {
-   "cell_type": "code",
-   "execution_count": null,
-   "id": "8e57b732-1a0a-4d91-b0c6-f781f0c18aa2",
-   "metadata": {},
-   "outputs": [],
-   "source": [
-    "import streamlit as st\n",
-    "import pandas as pd\n",
-    "import numpy as np\n",
-    "import pickle\n",
-    "from sentence_transformers import SentenceTransformer\n",
-    "from sklearn.metrics.pairwise import cosine_similarity\n",
-    "\n",
-    "# Title and description\n",
-    "st.title(\"🔍 SHL Assessment Recommendation System\")\n",
-    "st.write(\"This app helps you find the most relevant SHL assessments based on your role or keyword.\")\n",
-    "\n",
-    "# Load model and data\n",
-    "@st.cache_data\n",
-    "def load_data():\n",
-    "    df = pd.read_csv(\"shl_assessments_enriched.csv\")\n",
-    "    with open(\"shl_embeddings.pkl\", \"rb\") as f:\n",
-    "        df_embeds, embeddings = pickle.load(f)\n",
-    "    return df, embeddings\n",
-    "\n",
-    "df, embeddings = load_data()\n",
-    "model = SentenceTransformer('all-MiniLM-L6-v2')\n",
-    "\n",
-    "# --- Search box ---\n",
-    "query = st.text_input(\"Enter role/skill/assessment query:\", \"Software Developer Assessment\")\n",
-    "\n",
-    "# --- Filter options ---\n",
-    "selected_types = st.multiselect(\n",
-    "    \"Filter by Test Type (optional):\",\n",
-    "    options=[\"C\", \"P\", \"A\", \"B\", \"S\", \"K\"],\n",
-    "    default=[\"C\", \"P\"]\n",
-    ")\n",
-    "\n",
-    "top_n = st.slider(\"How many results to show?\", min_value=1, max_value=20, value=5)\n",
-    "\n",
-    "# --- Recommendation Function ---\n",
-    "def find_similar_assessments(query, filter_by_types=None, top_n=5):\n",
-    "    query_embedding = model.encode(query).reshape(1, -1)\n",
-    "    similarities = cosine_similarity(query_embedding, embeddings).flatten()\n",
-    "    df[\"Similarity\"] = similarities\n",
-    "\n",
-    "    if filter_by_types:\n",
-    "        def test_type_match(row):\n",
-    "            return any(t in row for t in filter_by_types)\n",
-    "        filtered_df = df[df[\"Test Type\"].apply(test_type_match)]\n",
-    "    else:\n",
-    "        filtered_df = df\n",
-    "\n",
-    "    top_matches = filtered_df.sort_values(by=\"Similarity\", ascending=False).head(top_n)\n",
-    "    return top_matches\n",
-    "\n",
-    "# --- Run search ---\n",
-    "if st.button(\"🔎 Recommend\"):\n",
-    "    results = find_similar_assessments(query, filter_by_types=selected_types, top_n=top_n)\n",
-    "\n",
-    "    if results.empty:\n",
-    "        st.warning(\"No matching assessments found. Try a broader query or different filters.\")\n",
-    "    else:\n",
-    "        st.success(\"Top matching assessments found!\")\n",
-    "        st.dataframe(results[[\"Assessment Name\", \"Test Type\", \"Similarity\", \"URL\"]], use_container_width=True, height=400)\n",
-    "\n",
-    "        # Show explanation\n",
-    "        with st.expander(\"💡 How are results ranked?\"):\n",
-    "            st.write(\"\"\"\n",
-    "                - We embed the query and each assessment using SentenceTransformer (`all-MiniLM-L6-v2`).\n",
-    "                - We compute cosine similarity between the query and each assessment.\n",
-    "                - Higher similarity means more relevance.\n",
-    "                - Filters (like Test Type) are applied **after** computing similarity.\n",
-    "            \"\"\")\n",
-    "\n",
-    "        # Option to download results\n",
-    "        csv = results.to_csv(index=False)\n",
-    "        st.download_button(\"⬇️ Download Results as CSV\", csv, file_name=\"shl_recommendations.csv\", mime=\"text/csv\")\n"
-   ]
-  }
- ],
- "metadata": {
-  "kernelspec": {
-   "display_name": "Python 3 (ipykernel)",
-   "language": "python",
-   "name": "python3"
-  },
-  "language_info": {
-   "codemirror_mode": {
-    "name": "ipython",
-    "version": 3
-   },
-   "file_extension": ".py",
-   "mimetype": "text/x-python",
-   "name": "python",
-   "nbconvert_exporter": "python",
-   "pygments_lexer": "ipython3",
-   "version": "3.13.2"
-  }
- },
- "nbformat": 4,
- "nbformat_minor": 5
-}
+import streamlit as st
+import pandas as pd
+import numpy as np
+import pickle
+from sentence_transformers import SentenceTransformer
+from sklearn.metrics.pairwise import cosine_similarity
+
+# Title and description
+st.title("🔍 SHL Assessment Recommendation System")
+st.write("This app helps you find the most relevant SHL assessments based on your role or keyword.")
+
+# Load model and data
+@st.cache_data
+def load_data():
+    df = pd.read_csv("shl_assessments_enriched.csv")
+    with open("shl_embeddings.pkl", "rb") as f:
+        df_embeds, embeddings = pickle.load(f)
+    return df, embeddings
+
+df, embeddings = load_data()
+model = SentenceTransformer('all-MiniLM-L6-v2')
+
+# --- Search box ---
+query = st.text_input("Enter role/skill/assessment query:", "Software Developer Assessment")
+
+# --- Filter options ---
+selected_types = st.multiselect(
+    "Filter by Test Type (optional):",
+    options=["C", "P", "A", "B", "S", "K"],
+    default=["C", "P"]
+)
+
+top_n = st.slider("How many results to show?", min_value=1, max_value=20, value=5)
+
+# --- Recommendation Function ---
+def find_similar_assessments(query, filter_by_types=None, top_n=5):
+    query_embedding = model.encode(query).reshape(1, -1)
+    similarities = cosine_similarity(query_embedding, embeddings).flatten()
+    df["Similarity"] = similarities
+
+    if filter_by_types:
+        def test_type_match(row):
+            return any(t in row for t in filter_by_types)
+        filtered_df = df[df["Test Type"].apply(test_type_match)]
+    else:
+        filtered_df = df
+
+    top_matches = filtered_df.sort_values(by="Similarity", ascending=False).head(top_n)
+    return top_matches
+
+# --- Run search ---
+if st.button("🔎 Recommend"):
+    results = find_similar_assessments(query, filter_by_types=selected_types, top_n=top_n)
+
+    if results.empty:
+        st.warning("No matching assessments found. Try a broader query or different filters.")
+    else:
+        st.success("Top matching assessments found!")
+        st.dataframe(results[["Assessment Name", "Test Type", "Similarity", "URL"]], use_container_width=True, height=400)
+
+        # Show explanation
+        with st.expander("💡 How are results ranked?"):
+            st.write("""
+                - We embed the query and each assessment using SentenceTransformer (`all-MiniLM-L6-v2`).
+                - We compute cosine similarity between the query and each assessment.
+                - Higher similarity means more relevance.
+                - Filters (like Test Type) are applied **after** computing similarity.
+            """)
+
+        # Option to download results
+        csv = results.to_csv(index=False)
+        st.download_button("⬇️ Download Results as CSV", csv, file_name="shl_recommendations.csv", mime="text/csv")
